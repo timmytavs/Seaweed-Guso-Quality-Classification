@@ -1,0 +1,14 @@
+# Python virtual environment
+backend/venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+backend/.env
+
+# Flutter generated files
+frontend/.dart_tool/
+frontend/build/
