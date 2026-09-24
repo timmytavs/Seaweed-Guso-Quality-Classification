@@ -1,11 +1,19 @@
-# app/main.py
-# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Guso Quality Classification API")
+from app.api.router import api_router
 
-@app.get("/")
-def root():
-    return {
-        "message": "Guso Quality Classification API is running"
-        }
+app = FastAPI(
+    title="gUSo API",
+    version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # development only
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api_router)

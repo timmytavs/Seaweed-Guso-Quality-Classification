@@ -1,0 +1,20 @@
+{
+    "class_to_idx": {
+        "CAULERPA LENTILIFERA": 0,
+        "CAULERPA SERTULARIOIDES": 1,
+        "KAPPAPHYCUS": 2,
+        "PADINA AUSTRALIS": 3,
+        "SARGASSUM MUTICUM": 4,
+        "TURBINARIA AUSTRALIS": 5,
+        "ULVA LACTUCA": 6
+    },
+    "classes": [
+        "CAULERPA LENTILIFERA",
+        "CAULERPA SERTULARIOIDES",
+        "KAPPAPHYCUS",
+        "PADINA AUSTRALIS",
+        "SARGASSUM MUTICUM",
+        "TURBINARIA AUSTRALIS",
+        "ULVA LACTUCA"
+    ]
+}
