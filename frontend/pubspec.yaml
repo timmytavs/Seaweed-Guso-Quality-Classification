@@ -38,14 +38,13 @@ dependencies:
   http: ^1.6.0
   file_picker: ^8.1.7
   provider: ^6.1.2
+  http_parser: ^4.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  http: ^1.5.0
-  http_parser: ^4.1.0
-
+  # http: ^1.5.0
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your

@@ -1,9 +1,93 @@
 from sqlalchemy.orm import Session
 
 from app.database.models import (
+    User,
     ClassificationRecord,
     ClassificationImage
 )
+
+
+# =====================================================
+# GET USER BY EMAIL
+# =====================================================
+
+def get_user_by_email(
+    db: Session,
+    email: str
+):
+
+    return (
+        db.query(User)
+        .filter(
+            User.email == email
+        )
+        .first()
+    )
+
+
+# =====================================================
+# GET USER BY CONTACT NUMBER
+# =====================================================
+
+def get_user_by_contact_num(
+    db: Session,
+    contact_num: str
+):
+
+    return (
+        db.query(User)
+        .filter(
+            User.contact_num == contact_num
+        )
+        .first()
+    )
+
+
+# =====================================================
+# GET USER BY ID
+# =====================================================
+
+def get_user_by_id(
+    db: Session,
+    user_id: int
+):
+
+    return (
+        db.query(User)
+        .filter(
+            User.user_id == user_id
+        )
+        .first()
+    )
+
+
+# =====================================================
+# CREATE USER
+# =====================================================
+
+def create_user(
+    db: Session,
+    full_name: str,
+    email: str | None,
+    contact_num: str,
+    password_hash: str
+):
+
+    user = User(
+        full_name=full_name,
+        email=email,
+        contact_num=contact_num,
+        password_hash=password_hash,
+        is_verified=False
+    )
+
+    db.add(user)
+
+    db.commit()
+
+    db.refresh(user)
+
+    return user
 
 
 

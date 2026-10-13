@@ -33,6 +33,14 @@ class User(Base):
     )
 
 
+    email = Column(
+        String(255),
+        nullable=True,
+        unique=True,
+        index=True
+    )
+
+
     full_name = Column(
         String(200),
         nullable=False
@@ -49,12 +57,6 @@ class User(Base):
     password_hash = Column(
         String,
         nullable=False
-    )
-
-
-    role = Column(
-        String(100),
-        default="user"
     )
 
 
