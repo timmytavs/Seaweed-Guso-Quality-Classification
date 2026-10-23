@@ -7,7 +7,8 @@ from app.api.routes import (
     health,
     history,
     classifications,
-    auth
+    auth,
+    otp
 )
 
 
@@ -28,4 +29,8 @@ api_router.include_router(
 
 api_router.include_router(
     auth.router
+)
+
+api_router.include_router(
+    otp.router
 )

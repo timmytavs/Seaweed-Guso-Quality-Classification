@@ -1,157 +1,125 @@
-from fastapi import (
-    APIRouter,
-    UploadFile,
-    File,
-    HTTPException,
-    Depends
-)
 
-from sqlalchemy.orm import Session
-
-from PIL import Image
+"""Authenticated gUSo classification and explicit-save endpoints."""
 
 from io import BytesIO
 
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from PIL import Image
+from sqlalchemy.orm import Session
 
-from app.database.database import (
-    SessionLocal
-)
-
-
-from app.services.classification_service import (
-    classify_image
-)
-
-
-from app.schemas.classification import (
-    ClassificationResponse
-)
-
+from app.core.auth_dependencies import get_current_user
+from app.database.database import get_db
+from app.database.models import ClassificationRecord, User
+from app.schemas.classification import ClassificationResponse
+from app.services.classification_service import classify_image
 
 
 router = APIRouter(
     prefix="/classifications",
-    tags=["Classification"]
+    tags=["Classification"],
 )
-
-
-
-# =====================================================
-# DATABASE DEPENDENCY
-# =====================================================
-
-def get_db():
-
-    db = SessionLocal()
-
-    try:
-
-        yield db
-
-    finally:
-
-        db.close()
-
 
 
 # =====================================================
 # CLASSIFICATION ENDPOINT
 # =====================================================
 
-@router.post(
-    "/",
-    response_model=ClassificationResponse
-)
+@router.post("/", response_model=ClassificationResponse)
 async def classify_uploaded_image(
-
     file: UploadFile = File(...),
-
-    db: Session = Depends(get_db)
-
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    """Classify an image and associate its record with its owner."""
 
-
-    # ---------------------------------------------
-    # CHECK FILE TYPE
-    # ---------------------------------------------
-
+    # Check allowed image types.
     allowed_types = [
         "image/jpeg",
-        "image/png"
+        "image/png",
     ]
 
-
     if file.content_type not in allowed_types:
-
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Only JPG and PNG images "
-                "are allowed."
-            )
+            detail="Only JPG and PNG images are allowed.",
         )
 
-
-
-    # ---------------------------------------------
-    # READ IMAGE BYTES
-    # ---------------------------------------------
-
+    # Read image bytes.
     image_bytes = await file.read()
 
-
-
-    # ---------------------------------------------
-    # OPEN IMAGE
-    # ---------------------------------------------
-
+    # Open and validate the uploaded image.
     try:
-
         image = Image.open(
             BytesIO(image_bytes)
-        ).convert(
-            "RGB"
-        )
+        ).convert("RGB")
 
-
-    except Exception:
-
-
+    except Exception as exc:
         raise HTTPException(
             status_code=400,
-            detail="Invalid image."
-        )
+            detail="Invalid image.",
+        ) from exc
 
-
-
-    # ---------------------------------------------
-    # CLASSIFY + SAVE
-    # ---------------------------------------------
-
+    # Classify image and associate it with the
+    # currently authenticated user.
+    #
+    # The record is initially stored as is_saved=False.
     result = classify_image(
-
         db=db,
-
         image=image,
-
         image_bytes=image_bytes,
-
-        file_name=file.filename,
-
+        file_name=file.filename or "upload",
         mime_type=file.content_type,
-        
-        user_id=1
-
+        user_id=current_user.user_id,
     )
 
+    return {
+        "filename": file.filename or "upload",
+        "result": result,
+    }
 
+
+# =====================================================
+# SAVE CLASSIFICATION ENDPOINT
+# =====================================================
+
+@router.post("/{classification_id}/save")
+def save_classification(
+    classification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Save a classification only when it belongs
+    to the currently authenticated user.
+    """
+
+    # Find classification belonging to this user.
+    record = (
+        db.query(ClassificationRecord)
+        .filter(
+            ClassificationRecord.classification_id
+            == classification_id,
+
+            ClassificationRecord.user_id
+            == current_user.user_id,
+        )
+        .first()
+    )
+
+    # Record not found or belongs to another user.
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Classification not found.",
+        )
+
+    # Mark as saved without creating duplicates.
+    if not record.is_saved:
+        record.is_saved = True
+        db.commit()
 
     return {
-
-        "filename":
-            file.filename,
-
-        "result":
-            result
-
+        "message": "Classification saved successfully.",
+        "classification_id": record.classification_id,
+        "is_saved": True,
     }

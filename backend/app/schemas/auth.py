@@ -105,3 +105,7 @@ class LoginResponse(BaseModel):
     message: str
 
     user: UserResponse
+
+    access_token: str | None = None
+
+    token_type: str | None = None

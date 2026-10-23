@@ -49,25 +49,41 @@ class ClassificationSummary extends StatelessWidget {
             runSpacing: 20,
             children: [
               _ResultCard(
-                title: 'Quality Grade',
-                value:
-                    '${result.qualityClass} — ${result.qualityLabel}',
-                icon: Icons.grade_outlined,
+                title: 'Species',
+                value: result.species ?? 'Not identified',
+                icon: Icons.eco_outlined,
               ),
 
               _ResultCard(
-                title: 'Freshness',
-                value: result.freshnessLevel,
-                icon: Icons.eco_outlined,
+                title: 'Quality Grade',
+                value: result.qualityGrade ??
+                    (result.qualityClass == 'Not available'
+                        ? 'Not analyzed'
+                        : result.qualityClass),
+                icon: Icons.grade_outlined,
               ),
 
               if (settings.showConfidence)
                 _ResultCard(
-                  title: 'Confidence',
-                  value:
-                      '${result.confidence.toStringAsFixed(1)}%',
+                  title: 'Species Confidence',
+                  value: '${result.confidence.toStringAsFixed(2)}%',
                   icon: Icons.analytics_outlined,
                 ),
+
+              if (settings.showConfidence &&
+                  result.qualityConfidencePercentage != null)
+                _ResultCard(
+                  title: 'Quality Confidence',
+                  value:
+                      '${result.qualityConfidencePercentage!.toStringAsFixed(2)}%',
+                  icon: Icons.assessment_outlined,
+                ),
+
+              _ResultCard(
+                title: 'Freshness',
+                value: result.freshnessLevel,
+                icon: Icons.spa_outlined,
+              ),
 
               if (settings.showImageQuality)
                 _ResultCard(

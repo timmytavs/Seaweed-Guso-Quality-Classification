@@ -8,28 +8,23 @@ class LandingLoginForm extends StatefulWidget {
     required this.onLoginPressed,
     required this.onBackPressed,
     required this.onRegisterPressed,
+    required this.onForgotPasswordPressed,
   });
 
-  final void Function(
-    String identifier,
-    String password,
-  ) onLoginPressed;
+  final void Function(String identifier, String password) onLoginPressed;
 
   final VoidCallback onBackPressed;
   final VoidCallback onRegisterPressed;
+  final VoidCallback onForgotPasswordPressed;
 
   @override
-  State<LandingLoginForm> createState() =>
-      _LandingLoginFormState();
+  State<LandingLoginForm> createState() => _LandingLoginFormState();
 }
 
-class _LandingLoginFormState
-    extends State<LandingLoginForm> {
-  final TextEditingController _identifierController =
-      TextEditingController();
+class _LandingLoginFormState extends State<LandingLoginForm> {
+  final TextEditingController _identifierController = TextEditingController();
 
-  final TextEditingController _passwordController =
-      TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
 
@@ -49,13 +44,8 @@ class _LandingLoginFormState
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(
-          AppRadius.extraLarge,
-        ),
-        border: Border.all(
-          color: AppColors.borderPrimary,
-          width: 1.5,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.extraLarge),
+        border: Border.all(color: AppColors.borderPrimary, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,9 +68,7 @@ class _LandingLoginFormState
                 height: 44,
                 decoration: BoxDecoration(
                   color: AppColors.primaryDark,
-                  borderRadius: BorderRadius.circular(
-                    AppRadius.medium,
-                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
                 ),
                 child: const Icon(
                   Icons.lock_outline_rounded,
@@ -118,14 +106,10 @@ class _LandingLoginFormState
           TextField(
             controller: _identifierController,
             keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-            ),
+            style: const TextStyle(color: AppColors.textPrimary),
             decoration: const InputDecoration(
               hintText: 'Email or Contact number',
-              prefixIcon: Icon(
-                Icons.person_outline_rounded,
-              ),
+              prefixIcon: Icon(Icons.person_outline_rounded),
             ),
           ),
 
@@ -134,25 +118,18 @@ class _LandingLoginFormState
           TextField(
             controller: _passwordController,
             obscureText: _obscurePassword,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-            ),
+            style: const TextStyle(color: AppColors.textPrimary),
             onSubmitted: (_) {
               _submitLogin();
             },
             decoration: InputDecoration(
               hintText: 'Password',
-              prefixIcon: const Icon(
-                Icons.lock_outline_rounded,
-              ),
+              prefixIcon: const Icon(Icons.lock_outline_rounded),
               suffixIcon: IconButton(
-                tooltip: _obscurePassword
-                    ? 'Show password'
-                    : 'Hide password',
+                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () {
                   setState(() {
-                    _obscurePassword =
-                        !_obscurePassword;
+                    _obscurePassword = !_obscurePassword;
                   });
                 },
                 icon: Icon(
@@ -164,66 +141,64 @@ class _LandingLoginFormState
             ),
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 8),
+
+          // =====================================================
+          // FORGOT PASSWORD LINK
+          // =====================================================
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: widget.onForgotPasswordPressed,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+              ),
+              child: const Text(
+                'Forgot Password?',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _submitLogin,
+
               style: ButtonStyle(
-                elevation:
-                    const WidgetStatePropertyAll(0),
+                elevation: const WidgetStatePropertyAll(0),
 
-                backgroundColor:
-                    WidgetStateProperty.resolveWith<Color>(
-                  (states) {
-                    if (states.contains(
-                      WidgetState.hovered,
-                    )) {
-                      return Colors.white;
-                    }
+                backgroundColor: WidgetStateProperty.resolveWith<Color>((
+                  states,
+                ) {
+                  if (states.contains(WidgetState.hovered)) {
+                    return Colors.white;
+                  }
 
-                    return AppColors.primary;
-                  },
+                  return AppColors.primary;
+                }),
+
+                foregroundColor: const WidgetStatePropertyAll(Colors.black),
+
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 28, vertical: 16),
                 ),
 
-                foregroundColor:
-                    const WidgetStatePropertyAll(
-                  Colors.black,
-                ),
-
-                padding:
-                    const WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 16,
-                  ),
-                ),
-
-                shape:
-                    WidgetStatePropertyAll(
+                shape: WidgetStatePropertyAll(
                   RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                      AppRadius.medium,
-                    ),
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
                   ),
                 ),
 
-                textStyle:
-                    const WidgetStatePropertyAll(
-                  TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
+                textStyle: const WidgetStatePropertyAll(
+                  TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
-              icon: const Icon(
-                Icons.login_rounded,
-              ),
-              label: const Text(
-                'LOGIN',
-              ),
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('LOGIN'),
             ),
           ),
 
@@ -231,8 +206,7 @@ class _LandingLoginFormState
 
           Center(
             child: Wrap(
-              crossAxisAlignment:
-                  WrapCrossAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Text(
                   "Don't have an account? ",
@@ -242,27 +216,19 @@ class _LandingLoginFormState
                   ),
                 ),
                 TextButton(
-                  onPressed:
-                      widget.onRegisterPressed,
+                  onPressed: widget.onRegisterPressed,
                   style: TextButton.styleFrom(
-                    foregroundColor:
-                        AppColors.primary,
-                    padding:
-                        const EdgeInsets.symmetric(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 4,
                       vertical: 2,
                     ),
                     minimumSize: Size.zero,
-                    tapTargetSize:
-                        MaterialTapTargetSize
-                            .shrinkWrap,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: const Text(
                     'Register',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -288,15 +254,10 @@ class _LandingLoginFormState
   }
 
   void _submitLogin() {
-    final identifier =
-        _identifierController.text.trim();
+    final identifier = _identifierController.text.trim();
 
-    final password =
-        _passwordController.text;
+    final password = _passwordController.text;
 
-    widget.onLoginPressed(
-      identifier,
-      password,
-    );
+    widget.onLoginPressed(identifier, password);
   }
 }

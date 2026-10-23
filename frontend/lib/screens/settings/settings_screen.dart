@@ -20,17 +20,11 @@ class SettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          _buildDisplaySettings(
-            context,
-            settings,
-          ),
+          _buildDisplaySettings(context, settings),
 
           const SizedBox(height: 24),
 
-          _buildClassificationSettings(
-            context,
-            settings,
-          ),
+          _buildClassificationSettings(context, settings),
 
           const SizedBox(height: 24),
 
@@ -46,21 +40,12 @@ class SettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(
-          AppRadius.large,
-        ),
-        border: Border.all(
-          color: AppColors.borderPrimary,
-          width: 1.5,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(color: AppColors.borderPrimary, width: 1.5),
       ),
       child: const Row(
         children: [
-          Icon(
-            Icons.settings_outlined,
-            color: AppColors.primary,
-            size: 30,
-          ),
+          Icon(Icons.settings_outlined, color: AppColors.primary, size: 30),
 
           SizedBox(width: 16),
 
@@ -104,9 +89,7 @@ class SettingsScreen extends StatelessWidget {
         SwitchListTile(
           value: settings.showConfidence,
           onChanged: (value) {
-            context
-                .read<SettingsProvider>()
-                .setShowConfidence(value);
+            context.read<SettingsProvider>().setShowConfidence(value);
           },
           activeThumbColor: AppColors.primary,
           title: const Text(
@@ -118,9 +101,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           subtitle: const Text(
             'Display the model confidence percentage in classification results.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
 
@@ -129,9 +110,7 @@ class SettingsScreen extends StatelessWidget {
         SwitchListTile(
           value: settings.showImageQuality,
           onChanged: (value) {
-            context
-                .read<SettingsProvider>()
-                .setShowImageQuality(value);
+            context.read<SettingsProvider>().setShowImageQuality(value);
           },
           activeThumbColor: AppColors.primary,
           title: const Text(
@@ -143,9 +122,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           subtitle: const Text(
             'Display whether the uploaded image is clear or may affect classification quality.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
       ],
@@ -162,9 +139,7 @@ class SettingsScreen extends StatelessWidget {
         SwitchListTile(
           value: settings.confirmBeforeDiscard,
           onChanged: (value) {
-            context
-                .read<SettingsProvider>()
-                .setConfirmBeforeDiscard(value);
+            context.read<SettingsProvider>().setConfirmBeforeDiscard(value);
           },
           activeThumbColor: AppColors.primary,
           title: const Text(
@@ -176,9 +151,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           subtitle: const Text(
             'Ask for confirmation before leaving an unsaved classification result.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
       ],
@@ -190,10 +163,7 @@ class SettingsScreen extends StatelessWidget {
       title: 'About',
       children: [
         const ListTile(
-          leading: Icon(
-            Icons.eco_outlined,
-            color: AppColors.primary,
-          ),
+          leading: Icon(Icons.eco_outlined, color: AppColors.primary),
           title: Text(
             'gUSo',
             style: TextStyle(
@@ -203,19 +173,14 @@ class SettingsScreen extends StatelessWidget {
           ),
           subtitle: Text(
             'Seaweed-Guso Quality Classification Using Image Processing',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
 
         const Divider(),
 
         ListTile(
-          leading: const Icon(
-            Icons.info_outline,
-            color: AppColors.primary,
-          ),
+          leading: const Icon(Icons.info_outline, color: AppColors.primary),
           title: const Text(
             'Frontend Status',
             style: TextStyle(
@@ -225,15 +190,10 @@ class SettingsScreen extends StatelessWidget {
           ),
           subtitle: const Text(
             'Flutter Web frontend',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
           trailing: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 5,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.primaryDark,
               borderRadius: BorderRadius.circular(20),
@@ -257,46 +217,36 @@ class _SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
-  const _SettingsSection({
-    required this.title,
-    required this.children,
-  });
+  const _SettingsSection({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(
-          AppRadius.large,
-        ),
-        border: Border.all(
-          color: AppColors.disabled,
-        ),
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        side: const BorderSide(color: AppColors.disabled),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              22,
-              20,
-              22,
-              12,
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
-
-          ...children,
-        ],
+            ...children,
+          ],
+        ),
       ),
     );
   }

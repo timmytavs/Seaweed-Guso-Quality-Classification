@@ -1,9 +1,12 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.database.models import (
     User,
     ClassificationRecord,
-    ClassificationImage
+    ClassificationImage,
+    OtpVerification
 )
 
 
@@ -190,3 +193,126 @@ def get_user_history(
 
 
     return records
+
+
+
+# =====================================================
+# OTP DATABASE OPERATIONS
+# =====================================================
+
+def _utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# =====================================================
+# CREATE OTP RECORD
+# =====================================================
+
+def create_otp_record(
+    db: Session,
+    user_id: int,
+    purpose: str,
+    otp_hash: str,
+    expires_at: datetime
+):
+
+    now = _utc_now()
+
+    # Invalidate previous unused codes
+    # for the same user and purpose.
+    db.query(OtpVerification).filter(
+        OtpVerification.user_id == user_id,
+        OtpVerification.purpose == purpose,
+        OtpVerification.verified_at.is_(None),
+        OtpVerification.expires_at > now
+    ).update(
+        {OtpVerification.expires_at: now},
+        synchronize_session=False
+    )
+
+    otp_record = OtpVerification(
+        user_id=user_id,
+        otp_hash=otp_hash,
+        purpose=purpose,
+        expires_at=expires_at,
+        verified_at=None,
+        attempts=0,
+        created_at=now
+    )
+
+    try:
+        db.add(otp_record)
+        db.commit()
+        db.refresh(otp_record)
+    except Exception:
+        db.rollback()
+        raise
+
+    return otp_record
+
+
+# =====================================================
+# GET LATEST PENDING OTP
+# =====================================================
+
+def get_pending_otp(
+    db: Session,
+    user_id: int,
+    purpose: str
+):
+
+    return (
+        db.query(OtpVerification)
+        .filter(
+            OtpVerification.user_id == user_id,
+            OtpVerification.purpose == purpose,
+            OtpVerification.verified_at.is_(None)
+        )
+        .order_by(
+            OtpVerification.created_at.desc(),
+            OtpVerification.otp_id.desc()
+        )
+        .first()
+    )
+
+
+# =====================================================
+# INCREASE FAILED ATTEMPTS
+# =====================================================
+
+def increment_otp_attempts(
+    db: Session,
+    otp_record: OtpVerification
+):
+
+    db.query(OtpVerification).filter(
+        OtpVerification.otp_id == otp_record.otp_id
+    ).update(
+        {
+            OtpVerification.attempts:
+                OtpVerification.attempts + 1
+        },
+        synchronize_session=False
+    )
+
+    db.commit()
+    db.refresh(otp_record)
+
+    return otp_record
+
+
+# =====================================================
+# MARK OTP AS VERIFIED
+# =====================================================
+
+def mark_otp_verified(
+    db: Session,
+    otp_record: OtpVerification
+):
+
+    otp_record.verified_at = _utc_now()
+
+    db.commit()
+    db.refresh(otp_record)
+
+    return otp_record

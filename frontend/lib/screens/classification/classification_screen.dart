@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../../app/theme.dart';
 import '../../widgets/classification/image_upload_area.dart';
@@ -17,6 +20,7 @@ import '../../providers/classification_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/common/error_message.dart';
 import '../../services/classification_service.dart';
+import '../../services/auth_service.dart';
 
 class ClassificationScreen extends StatefulWidget {
   const ClassificationScreen({super.key});
@@ -33,6 +37,7 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
 
   bool _isAnalyzing = false;
   bool _isSaved = false;
+  bool _isSaving = false;
   ClassificationResult? _result;
   String? _errorMessage;
 
@@ -40,6 +45,13 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
   bool get _hasResult => _result != null;
 
   void _handleImageChanged(SelectedImage? image) {
+    if (_isSaving) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait until saving finishes.')),
+      );
+      return;
+    }
+
     setState(() {
       _selectedImage = image;
       _result = null;
@@ -51,6 +63,8 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
   }
 
   void _uploadNext() {
+    if (_isSaving) return;
+
     final settings = context.read<SettingsProvider>();
 
     if (_hasResult && !_isSaved && settings.confirmBeforeDiscard) {
@@ -61,34 +75,114 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
     _resetClassification();
   }
 
-  void _saveResult() {
-    if (!_hasResult || _isSaved || _selectedImage == null) {
+  // Mark the classified record as saved in PostgreSQL first.
+  Future<void> _saveResult() async {
+    if (_isSaving || _isSaved || _isAnalyzing) return;
+
+    final image = _selectedImage;
+    final result = _result;
+
+    if (image == null || result == null) return;
+
+    final classificationId = result.classificationId;
+    if (classificationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This result has no database ID and cannot be saved.'),
+        ),
+      );
       return;
     }
 
-    final record = ClassificationRecord(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      fileName: _selectedImage!.fileName,
-      imageBytes: _selectedImage!.bytes,
-      result: _result!,
-      createdAt: DateTime.now(),
-    );
-
-    context.read<ClassificationProvider>().addRecord(record);
-
     setState(() {
-      _isSaved = true;
+      _isSaving = true;
+      _errorMessage = null;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Classification record saved successfully.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse(
+          'http://127.0.0.1:8000/classifications/$classificationId/save',
+        ),
+        headers: AuthService.authorizationHeaders,
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 401) {
+        throw Exception('Your session expired. Please log in again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        String detail = 'Server returned ${response.statusCode}';
+        try {
+          final error = jsonDecode(response.body);
+          if (error is Map && error['detail'] != null) {
+            detail = error['detail'].toString();
+          }
+        } catch (_) {
+          // Keep the status-code message if the response is not JSON.
+        }
+        throw Exception(detail);
+      }
+
+      // Only show a successful save once FastAPI confirms it.
+      final responseData = jsonDecode(response.body);
+      if (responseData is! Map || responseData['is_saved'] != true) {
+        throw const FormatException(
+          'The server did not confirm that the record was saved.',
+        );
+      }
+
+      if (!mounted) return;
+
+      final record = ClassificationRecord(
+        id: classificationId.toString(),
+        fileName: image.fileName,
+        imageBytes: image.bytes,
+        result: result,
+        createdAt: DateTime.now(),
+      );
+
+      context.read<ClassificationProvider>().addRecord(record);
+
+      setState(() {
+        // Do not mark a newly selected result as saved by mistake.
+        if (identical(_result, result)) {
+          _isSaved = true;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Classification saved to PostgreSQL successfully.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      final message = error.toString()
+          .replaceFirst('Exception: ', '')
+          .replaceFirst('FormatException: ', '');
+
+      setState(() {
+        _errorMessage = 'Could not save classification: $message';
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $message')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   void _resetClassification() {
+    if (_isSaving) return;
+
     setState(() {
       _selectedImage = null;
       _result = null;
@@ -133,13 +227,13 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
       },
     );
 
-    if (shouldContinue == true) {
+    if (shouldContinue == true && !_isSaving) {
       _resetClassification();
     }
   }
 
   Future<void> _classifyImage() async {
-    if (!_hasImage || _isAnalyzing) {
+    if (!_hasImage || _isAnalyzing || _isSaving) {
       return;
     }
 
@@ -269,7 +363,7 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
 
           ImageUploadArea(
             onImageChanged: _handleImageChanged,
-            isAnalyzing: _isAnalyzing,
+            isAnalyzing: _isAnalyzing || _isSaving,
           ),
 
           if (_hasResult) ...[
@@ -283,6 +377,21 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
 
             const SizedBox(height: 24),
 
+            if (_isSaving) ...[
+              const Row(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 12),
+                  Text('Saving classification to PostgreSQL...'),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
             ResultActions(
               onUploadNext: _uploadNext,
               onSave: _saveResult,
@@ -295,7 +404,9 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _hasImage && !_isAnalyzing ? _classifyImage : null,
+              onPressed: _hasImage && !_isAnalyzing && !_isSaving
+                  ? _classifyImage
+                  : null,
               icon: _isAnalyzing
                   ? const SizedBox(
                       width: 18,

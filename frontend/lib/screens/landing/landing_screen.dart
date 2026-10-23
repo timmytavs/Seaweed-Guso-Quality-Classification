@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
-import '../../screens/home/home_screen.dart';
 import '../../screens/seaweed_guide/seaweed_guide_screen.dart';
-
-import '../../services/auth_service.dart';
 
 import '../../widgets/landing/landing_about.dart';
 import '../../widgets/landing/landing_footer.dart';
@@ -12,6 +9,11 @@ import '../../widgets/landing/landing_hero.dart';
 import '../../widgets/landing/landing_how_it_works.dart';
 import '../../widgets/landing/landing_navbar.dart';
 import '../../widgets/landing/landing_seaweed_guide_preview.dart';
+
+import '../../services/auth_service.dart';
+import '../home/home_screen.dart';
+
+import 'forgot_password_screen.dart';
 
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
@@ -21,8 +23,6 @@ class LandingScreen extends StatefulWidget {
 }
 
 class _LandingScreenState extends State<LandingScreen> {
-  final AuthService _authService = const AuthService();
-
   static const double _desktopBreakpoint = 1200;
   static const double _mobileBreakpoint = 768;
   static const double _maxContentWidth = 1440;
@@ -93,6 +93,8 @@ class _LandingScreenState extends State<LandingScreen> {
                             },
 
                         onShowLogin: _showLoginPanel,
+
+                        onForgotPasswordPressed: _openForgotPassword,
 
                         onShowRegister: _showRegisterPanel,
 
@@ -258,107 +260,59 @@ class _LandingScreenState extends State<LandingScreen> {
     String identifier,
     String password,
   ) async {
-    final cleanIdentifier = identifier.trim();
-
-    // =============================================
-    // FRONTEND VALIDATION
-    // =============================================
-
-    if (cleanIdentifier.isEmpty) {
-      _showMessage('Please enter your email or contact number.');
+    if (identifier.trim().isEmpty || password.isEmpty) {
+      _showMessage('Please enter your email or contact number and password.');
       return;
     }
-
-    if (password.isEmpty) {
-      _showMessage('Please enter your password.');
-      return;
-    }
-
-    // =============================================
-    // SEND LOGIN TO FASTAPI
-    // =============================================
 
     try {
-      final response = await _authService.login(
-        identifier: cleanIdentifier,
+      await const AuthService().login(
+        identifier: identifier,
         password: password,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      final message = response['message']?.toString() ?? 'Login successful.';
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } catch (error) {
+      if (!mounted) return;
 
-      _showMessage(message);
-
-      // =============================================
-      // OPEN MAIN APPLICATION
-      // =============================================
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      final errorMessage = e.toString().replaceFirst('Exception: ', '');
-
-      _showMessage(errorMessage);
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
     }
   }
 
-  Future<void> _handleRegisterSubmission(
+  void _handleRegisterSubmission(
     String firstName,
     String lastName,
     String email,
     String contactNumber,
     String password,
     String confirmPassword,
-  ) async {
-    final cleanFirstName = firstName.trim();
-    final cleanLastName = lastName.trim();
-    final cleanEmail = email.trim();
-    final cleanContactNumber = contactNumber.trim();
-
-    // =============================================
-    // FRONTEND VALIDATION
-    // =============================================
-
-    if (cleanFirstName.isEmpty) {
+  ) {
+    if (firstName.isEmpty) {
       _showMessage('Please enter your first name.');
       return;
     }
 
-    if (cleanLastName.isEmpty) {
+    if (lastName.isEmpty) {
       _showMessage('Please enter your last name.');
       return;
     }
 
-    // if (cleanEmail.isEmpty) {
-    //   _showMessage('Please enter your email address.');
-    //   return;
-    // }
-
-    if (cleanEmail.isNotEmpty && !_looksLikeEmail(cleanEmail)) {
-      _showMessage('Please enter a valid email address or leave it blank.');
+    if (contactNumber.isEmpty) {
+      _showMessage('Please enter your contact number.');
       return;
     }
 
-    if (cleanContactNumber.isEmpty) {
-      _showMessage('Please enter your contact number.');
+    if (email.isNotEmpty && !_looksLikeEmail(email)) {
+      _showMessage('Please enter a valid email address or leave it blank.');
       return;
     }
 
     if (password.isEmpty) {
       _showMessage('Please create a password.');
-      return;
-    }
-
-    if (password.length < 8) {
-      _showMessage('Password must contain at least 8 characters.');
       return;
     }
 
@@ -372,40 +326,7 @@ class _LandingScreenState extends State<LandingScreen> {
       return;
     }
 
-    // =============================================
-    // SEND REGISTRATION TO FASTAPI
-    // =============================================
-
-    try {
-      final response = await _authService.register(
-        firstName: cleanFirstName,
-        lastName: cleanLastName,
-        email: cleanEmail,
-        contactNumber: cleanContactNumber,
-        password: password,
-        confirmPassword: confirmPassword,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      final message =
-          response['message']?.toString() ?? 'Registration successful.';
-
-      _showMessage(message);
-
-      // Move to Login panel after registration.
-      _showLoginPanel();
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      final errorMessage = e.toString().replaceFirst('Exception: ', '');
-
-      _showMessage(errorMessage);
-    }
+    _showMessage('Registration backend will be connected later.');
   }
 
   bool _looksLikeEmail(String email) {
@@ -479,5 +400,39 @@ class _LandingScreenState extends State<LandingScreen> {
         },
       ),
     );
+  }
+
+  void _handleRecoverySubmission(String identifier) {
+    if (identifier.isEmpty) {
+      _showMessage('Please enter your email or contact number.');
+      return;
+    }
+
+    _showMessage('Password recovery backend will be connected next.');
+  }
+
+  Future<void> _openForgotPassword() async {
+    final result = await Navigator.of(context).push<ForgotPasswordReturnAction>(
+      MaterialPageRoute(
+        builder: (_) {
+          return ForgotPasswordScreen(
+            onRecoverySubmitted: (identifier) {
+              _handleRecoverySubmission(identifier);
+            },
+          );
+        },
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (result == ForgotPasswordReturnAction.register) {
+      _setAuthView(LandingHeroView.register);
+      return;
+    }
+
+    _setAuthView(LandingHeroView.login);
   }
 }

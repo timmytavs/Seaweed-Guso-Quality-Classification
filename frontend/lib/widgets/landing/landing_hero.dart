@@ -24,11 +24,14 @@ class LandingHero extends StatelessWidget {
     required this.onShowLogin,
     required this.onShowRegister,
     required this.onBackToPreview,
+    required this.onForgotPasswordPressed,
   });
-
+  
   final double desktopBreakpoint;
   final double mobileBreakpoint;
   final double maxContentWidth;
+
+  final VoidCallback onForgotPasswordPressed;
 
   final VoidCallback onGetStartedPressed;
   final VoidCallback onExploreGuidePressed;
@@ -118,6 +121,8 @@ class LandingHero extends StatelessWidget {
                                 onShowRegister,
                             onBackToPreview:
                                 onBackToPreview,
+                            onForgotPasswordPressed:
+                              onForgotPasswordPressed,
                           ),
                         ),
                       ],
@@ -151,6 +156,8 @@ class LandingHero extends StatelessWidget {
                               onShowRegister,
                           onBackToPreview:
                               onBackToPreview,
+                          onForgotPasswordPressed:
+                              onForgotPasswordPressed,
                         ),
                       ],
                     ),
@@ -391,6 +398,7 @@ class _HeroPanel extends StatelessWidget {
     required this.onShowLogin,
     required this.onShowRegister,
     required this.onBackToPreview,
+    required this.onForgotPasswordPressed,
   });
 
   final bool compact;
@@ -413,6 +421,7 @@ class _HeroPanel extends StatelessWidget {
   final VoidCallback onShowLogin;
   final VoidCallback onShowRegister;
   final VoidCallback onBackToPreview;
+  final VoidCallback onForgotPasswordPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -495,6 +504,8 @@ class _HeroPanel extends StatelessWidget {
               onBackToPreview,
           onRegisterPressed:
               onShowRegister,
+          onForgotPasswordPressed:
+              onForgotPasswordPressed,
         );
 
       case LandingHeroView.register:

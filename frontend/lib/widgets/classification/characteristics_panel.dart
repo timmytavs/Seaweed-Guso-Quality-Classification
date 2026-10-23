@@ -6,10 +6,7 @@ import '../../models/classification_result.dart';
 class CharacteristicsPanel extends StatelessWidget {
   final ClassificationResult result;
 
-  const CharacteristicsPanel({
-    super.key,
-    required this.result,
-  });
+  const CharacteristicsPanel({super.key, required this.result});
 
   @override
   Widget build(BuildContext context) {
@@ -19,10 +16,7 @@ class CharacteristicsPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.large),
-        border: Border.all(
-          color: AppColors.borderLight,
-          width: 1.5,
-        ),
+        border: Border.all(color: AppColors.borderLight, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,7 +33,9 @@ class CharacteristicsPanel extends StatelessWidget {
           const SizedBox(height: 8),
 
           const Text(
-            'Visual characteristics detected from the uploaded image.',
+            'Color and visual texture are estimated from the whole image, '
+            'including its background. Surface condition and visible defects '
+            'are not separately analyzed.',
             style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 14,
@@ -103,9 +99,7 @@ class _CharacteristicItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceDark,
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: Border.all(
-          color: AppColors.disabled,
-        ),
+        border: Border.all(color: AppColors.disabled),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,15 +109,9 @@ class _CharacteristicItem extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               color: AppColors.primaryDark,
-              borderRadius: BorderRadius.circular(
-                AppRadius.small,
-              ),
+              borderRadius: BorderRadius.circular(AppRadius.small),
             ),
-            child: Icon(
-              icon,
-              color: AppColors.primary,
-              size: 22,
-            ),
+            child: Icon(icon, color: AppColors.primary, size: 22),
           ),
 
           const SizedBox(width: 16),
