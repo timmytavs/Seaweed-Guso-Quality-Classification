@@ -5,6 +5,7 @@ from io import BytesIO
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from PIL import Image
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.auth_dependencies import get_current_user
@@ -122,4 +123,59 @@ def save_classification(
         "message": "Classification saved successfully.",
         "classification_id": record.classification_id,
         "is_saved": True,
+    }
+
+
+# =====================================================
+# DELETE SAVED CLASSIFICATION ENDPOINT
+# =====================================================
+
+@router.delete("/{classification_id}")
+def delete_saved_classification(
+    classification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Permanently delete a saved classification owned by this user.
+
+    Delete the associated original image before the classification record
+    so database foreign-key constraints remain satisfied.
+    """
+    record = (
+        db.query(ClassificationRecord)
+        .filter(
+            ClassificationRecord.classification_id == classification_id,
+            ClassificationRecord.user_id == current_user.user_id,
+            ClassificationRecord.is_saved.is_(True),
+        )
+        .first()
+    )
+
+    # Do not disclose whether an inaccessible classification exists.
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Saved classification not found.",
+        )
+
+    try:
+        # The current ClassificationRecord model has a one-to-one image
+        # relationship. Delete its image first to satisfy the foreign key.
+        if record.image is not None:
+            db.delete(record.image)
+            db.flush()
+
+        db.delete(record)
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to delete the saved classification.",
+        ) from exc
+
+    return {
+        "message": "Classification deleted successfully.",
+        "classification_id": classification_id,
+        "deleted": True,
     }

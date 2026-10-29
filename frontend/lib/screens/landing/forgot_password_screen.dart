@@ -37,7 +37,23 @@ class _ForgotPasswordScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.fromARGB(255, 2, 76, 2),
+              Color(0xFF0B2D0D),
+              Color(0xFF001000),
+            ],
+            stops: [
+              0.0,
+              0.48,
+              1.0,
+            ],
+          ),
+        ),
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(

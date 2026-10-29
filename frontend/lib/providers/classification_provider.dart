@@ -7,6 +7,9 @@ import '../services/history_service.dart';
 class ClassificationProvider extends ChangeNotifier {
   final HistoryService _historyService = const HistoryService();
 
+  // Prevent duplicate requests for the same classification.
+  final Set<int> _deletingClassificationIds = <int>{};
+
   // Full records with images/results available during this Flutter session.
   final List<ClassificationRecord> _records = [];
 
@@ -21,22 +24,26 @@ class ClassificationProvider extends ChangeNotifier {
   String? _sessionToken;
   int _historyRequestVersion = 0;
 
-  List<ClassificationRecord> get records =>
-      List.unmodifiable(_isCurrentSession ? _records : <ClassificationRecord>[]);
+  List<ClassificationRecord> get records => List.unmodifiable(
+    _isCurrentSession ? _records : <ClassificationRecord>[],
+  );
 
   ClassificationRecord? get selectedRecord =>
       _isCurrentSession ? _selectedRecord : null;
 
   bool get hasRecords => records.isNotEmpty;
 
-  List<SavedClassificationSummary> get savedSummaries =>
-      List.unmodifiable(
-        _isCurrentSession ? _savedSummaries : <SavedClassificationSummary>[],
-      );
+  List<SavedClassificationSummary> get savedSummaries => List.unmodifiable(
+    _isCurrentSession ? _savedSummaries : <SavedClassificationSummary>[],
+  );
 
   bool get hasSavedHistory => hasRecords || savedSummaries.isNotEmpty;
 
   bool get isLoadingHistory => _isCurrentSession && _isLoadingHistory;
+
+  bool isDeletingClassification(int classificationId) =>
+      _isCurrentSession &&
+      _deletingClassificationIds.contains(classificationId);
 
   String? get historyError => _isCurrentSession ? _historyError : null;
 
@@ -52,6 +59,7 @@ class ClassificationProvider extends ChangeNotifier {
     _historyRequestVersion++;
     _records.clear();
     _savedSummaries.clear();
+    _deletingClassificationIds.clear();
     _selectedRecord = null;
     _isLoadingHistory = false;
     _historyError = null;
@@ -123,7 +131,64 @@ class ClassificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Local removal only. A backend DELETE API is still needed for permanent deletion.
+  // Permanently delete an owned, saved classification through FastAPI.
+  // The local lists change only AFTER the server confirms deletion.
+  Future<void> deleteSavedClassification(int classificationId) async {
+    _syncSession();
+
+    if (classificationId <= 0) {
+      throw ArgumentError.value(
+        classificationId,
+        'classificationId',
+        'Must be a positive database classification ID.',
+      );
+    }
+
+    final token = AuthService.accessToken;
+    if (token == null || token.isEmpty) {
+      throw StateError('Please log in to delete a saved classification.');
+    }
+
+    if (_deletingClassificationIds.contains(classificationId)) {
+      throw StateError('This classification is already being deleted.');
+    }
+
+    _deletingClassificationIds.add(classificationId);
+    notifyListeners();
+
+    try {
+      await _historyService.deleteSavedClassification(classificationId);
+
+      // A previous account's response must never change the new account's UI.
+      if (_sessionToken != token || AuthService.accessToken != token) {
+        return;
+      }
+
+      // Discard any History GET started before this confirmed deletion.
+      // Otherwise a delayed response could bring the deleted record back.
+      _historyRequestVersion++;
+      _isLoadingHistory = false;
+
+      final deletedId = classificationId.toString();
+      _records.removeWhere((record) => record.id == deletedId);
+      _savedSummaries.removeWhere((summary) => summary.id == classificationId);
+
+      if (_selectedRecord?.id == deletedId) {
+        _selectedRecord = _records.isNotEmpty ? _records.first : null;
+      }
+
+      _historyError = null;
+    } finally {
+      // On failure, leave all records untouched and let the UI show the error.
+      if (_sessionToken == token && AuthService.accessToken == token) {
+        _deletingClassificationIds.remove(classificationId);
+        notifyListeners();
+      }
+    }
+  }
+
+  // Local-only removal (does not delete a record or image from PostgreSQL).
+  // Use deleteSavedClassification() for the permanent user-facing action.
   void removeRecord(String recordId) {
     _syncSession();
     final wasSelected = _selectedRecord?.id == recordId;
@@ -143,6 +208,7 @@ class ClassificationProvider extends ChangeNotifier {
     _historyRequestVersion++;
     _records.clear();
     _savedSummaries.clear();
+    _deletingClassificationIds.clear();
     _selectedRecord = null;
     _isLoadingHistory = false;
     _historyError = null;

@@ -73,6 +73,84 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  // Ask first: this operation deletes the PostgreSQL record and its image.
+  Future<void> _confirmDelete(_HistoryEntry entry) async {
+    final classificationId = int.tryParse(entry.id);
+    if (classificationId == null || classificationId <= 0) return;
+
+    final provider = context.read<ClassificationProvider>();
+    if (provider.isDeletingClassification(classificationId)) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          side: const BorderSide(color: AppColors.disabled),
+        ),
+        title: const Text(
+          'Delete saved classification?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Permanently delete record #$classificationId (${entry.grade})? '
+          'Its original image and stored AI analysis will also be removed. '
+          'This action cannot be undone.',
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.delete_forever_outlined),
+            label: const Text('Delete permanently'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || confirmed != true) return;
+
+    try {
+      // The provider only updates its lists after FastAPI returns success.
+      await context
+          .read<ClassificationProvider>()
+          .deleteSavedClassification(classificationId);
+      if (!mounted) return;
+
+      if (_selectedId == entry.id) {
+        setState(() => _selectedId = null);
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Classification #$classificationId deleted.')),
+        );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              error.toString().replaceFirst('Exception: ', ''),
+            ),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ClassificationProvider>();
@@ -168,6 +246,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     // Non-empty entry list guarantees a selected record.
                     final chosen = selected!;
                     final isWide = constraints.maxWidth >= _historyBreakpoint;
+                    final classificationId = int.tryParse(chosen.id);
+                    final isDeleting = classificationId != null &&
+                        provider.isDeletingClassification(classificationId);
+                    final VoidCallback? onDelete = classificationId != null &&
+                            classificationId > 0 &&
+                            !isDeleting
+                        ? () => _confirmDelete(chosen)
+                        : null;
                     final list = _HistoryList(
                       entries: entries,
                       selectedId: chosen.id,
@@ -178,10 +264,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ? _HistoryDetails(
                             record: chosen.record!,
                             useInternalScroll: isWide,
+                            onDelete: onDelete,
+                            isDeleting: isDeleting,
                           )
                         : _SavedSummaryDetails(
                             summary: chosen.summary!,
                             useInternalScroll: isWide,
+                            onDelete: onDelete,
+                            isDeleting: isDeleting,
                           );
 
                     if (isWide) {
@@ -452,13 +542,45 @@ class _ReportStatusChip extends StatelessWidget {
   }
 }
 
+// The same control is used for current-session and PostgreSQL records.
+class _DeleteClassificationButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final bool isDeleting;
+
+  const _DeleteClassificationButton({
+    required this.onPressed,
+    required this.isDeleting,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: isDeleting ? 'Deleting classification...' : 'Delete classification',
+      onPressed: onPressed,
+      color: AppColors.error,
+      disabledColor: AppColors.textMuted,
+      icon: isDeleting
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.delete_outline),
+    );
+  }
+}
+
 class _SavedSummaryDetails extends StatelessWidget {
   final SavedClassificationSummary summary;
   final bool useInternalScroll;
+  final VoidCallback? onDelete;
+  final bool isDeleting;
 
   const _SavedSummaryDetails({
     required this.summary,
     this.useInternalScroll = true,
+    required this.onDelete,
+    required this.isDeleting,
   });
 
   @override
@@ -479,11 +601,11 @@ class _SavedSummaryDetails extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.cloud_done_outlined, color: AppColors.primary),
-                    SizedBox(width: 12),
-                    Expanded(
+                    const Icon(Icons.cloud_done_outlined, color: AppColors.primary),
+                    const SizedBox(width: 12),
+                    const Expanded(
                       child: Text(
                         'Saved Classification Record',
                         style: TextStyle(
@@ -492,6 +614,10 @@ class _SavedSummaryDetails extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                    ),
+                    _DeleteClassificationButton(
+                      onPressed: onDelete,
+                      isDeleting: isDeleting,
                     ),
                   ],
                 ),
@@ -1345,8 +1471,15 @@ class _SummaryField extends StatelessWidget {
 class _HistoryDetails extends StatelessWidget {
   final ClassificationRecord record;
   final bool useInternalScroll;
+  final VoidCallback? onDelete;
+  final bool isDeleting;
 
-  const _HistoryDetails({required this.record, this.useInternalScroll = true});
+  const _HistoryDetails({
+    required this.record,
+    this.useInternalScroll = true,
+    required this.onDelete,
+    required this.isDeleting,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1355,7 +1488,11 @@ class _HistoryDetails extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RecordHeader(record: record),
+          _RecordHeader(
+            record: record,
+            onDelete: onDelete,
+            isDeleting: isDeleting,
+          ),
 
           const SizedBox(height: 24),
 
@@ -1384,8 +1521,14 @@ class _HistoryDetails extends StatelessWidget {
 
 class _RecordHeader extends StatelessWidget {
   final ClassificationRecord record;
+  final VoidCallback? onDelete;
+  final bool isDeleting;
 
-  const _RecordHeader({required this.record});
+  const _RecordHeader({
+    required this.record,
+    required this.onDelete,
+    required this.isDeleting,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1446,11 +1589,9 @@ class _RecordHeader extends StatelessWidget {
               ],
             ),
           ),
-          // Server-side DELETE is not yet implemented. Do not allow an
-          // in-memory-only deletion that falsely claims to erase PostgreSQL.
-          const Tooltip(
-            message: 'Delete will be available after backend support is added',
-            child: Icon(Icons.delete_outline, color: AppColors.textMuted),
+          _DeleteClassificationButton(
+            onPressed: onDelete,
+            isDeleting: isDeleting,
           ),
         ],
       ),

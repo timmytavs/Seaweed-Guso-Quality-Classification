@@ -15,21 +15,15 @@ class HistoryService {
   // =====================================================
 
   Future<List<Map<String, dynamic>>> fetchSavedHistory() async {
-    // Check if a JWT is available.
     if (!AuthService.hasAccessToken) {
       throw Exception('Please log in to view your classification history.');
     }
 
     final uri = Uri.parse('$_baseUrl/history/me');
 
-    // Send authenticated request.
     final response = await http
         .get(uri, headers: AuthService.authorizationHeaders)
         .timeout(const Duration(seconds: 30));
-
-    // =====================================================
-    // HANDLE AUTHENTICATION ERRORS
-    // =====================================================
 
     if (response.statusCode == 401) {
       throw Exception(
@@ -42,20 +36,12 @@ class HistoryService {
       throw Exception('You do not have permission to access this history.');
     }
 
-    // =====================================================
-    // HANDLE OTHER API ERRORS
-    // =====================================================
-
     if (response.statusCode != 200) {
       throw Exception(
         'Unable to load classification history '
         '(HTTP ${response.statusCode}).',
       );
     }
-
-    // =====================================================
-    // PARSE BACKEND RESPONSE
-    // =====================================================
 
     final dynamic decoded = jsonDecode(response.body);
 
@@ -73,7 +59,6 @@ class HistoryService {
       );
     }
 
-    // Convert JSON records to Dart maps.
     return records
         .map<Map<String, dynamic>>((item) {
           if (item is! Map) {
@@ -102,9 +87,7 @@ class HistoryService {
       throw Exception('Please log in to view this saved image.');
     }
 
-    final uri = Uri.parse(
-      '$_baseUrl/history/$classificationId/image',
-    );
+    final uri = Uri.parse('$_baseUrl/history/$classificationId/image');
 
     final response = await http
         .get(uri, headers: AuthService.authorizationHeaders)
@@ -135,7 +118,8 @@ class HistoryService {
       );
     }
 
-    final contentType = response.headers['content-type']
+    final contentType =
+        response.headers['content-type']
             ?.split(';')
             .first
             .trim()
@@ -153,5 +137,71 @@ class HistoryService {
     }
 
     return response.bodyBytes;
+  }
+
+  // =====================================================
+  // DELETE AN OWNED, SAVED CLASSIFICATION AND ITS IMAGE
+  // =====================================================
+
+  Future<void> deleteSavedClassification(int classificationId) async {
+    if (classificationId <= 0) {
+      throw ArgumentError.value(
+        classificationId,
+        'classificationId',
+        'Must be a positive database classification ID.',
+      );
+    }
+
+    if (!AuthService.hasAccessToken) {
+      throw Exception('Please log in to delete a saved classification.');
+    }
+
+    final uri = Uri.parse('$_baseUrl/classifications/$classificationId');
+
+    final response = await http
+        .delete(uri, headers: AuthService.authorizationHeaders)
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode == 401) {
+      throw Exception(
+        'Your login session has expired or is invalid. '
+        'Please log in again.',
+      );
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception('You do not have permission to delete this record.');
+    }
+
+    if (response.statusCode == 404) {
+      throw Exception(
+        'This saved classification was not found or is not accessible.',
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Unable to delete saved classification '
+        '(HTTP ${response.statusCode}).',
+      );
+    }
+
+    // The backend must confirm exactly the requested record was deleted.
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException {
+      throw const FormatException(
+        'The server returned an invalid deletion confirmation.',
+      );
+    }
+
+    if (decoded is! Map ||
+        decoded['deleted'] != true ||
+        decoded['classification_id'] != classificationId) {
+      throw const FormatException(
+        'The server did not confirm deletion of this classification.',
+      );
+    }
   }
 }

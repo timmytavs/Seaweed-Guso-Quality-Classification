@@ -1,6 +1,10 @@
-"""Password security and signed JWT access tokens for the gUSo API."""
 
+"""Password security, signed JWTs, and recovery-code helpers for gUSo."""
+
+import hashlib
+import hmac
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -10,7 +14,7 @@ from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
 
 
-# Load backend/.env when the module is used directly during development.
+# Load backend/.env when this module is used directly during development.
 # Environment variables supplied by the host take precedence.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -42,14 +46,29 @@ def _get_jwt_secret() -> str:
     return secret
 
 
-def create_access_token(user_id: int) -> str:
-    """Return a one-hour JWT for an authenticated account."""
-    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+def _validate_user_id(user_id: int) -> None:
+    if type(user_id) is not int or user_id <= 0:
         raise ValueError("user_id must be a positive integer.")
+
+
+def _validate_token_version(token_version: int) -> None:
+    if type(token_version) is not int or token_version < 0:
+        raise ValueError("token_version must be a non-negative integer.")
+
+
+def create_access_token(user_id: int, token_version: int = 0) -> str:
+    """Issue a one-hour JWT with the account's authentication version.
+
+    Defaulting the version to 0 keeps existing login calls working during
+    migration. The login service must eventually pass the real DB version.
+    """
+    _validate_user_id(user_id)
+    _validate_token_version(token_version)
 
     now = datetime.now(timezone.utc)
     claims = {
         "sub": str(user_id),
+        "ver": token_version,
         "iss": JWT_ISSUER,
         "aud": JWT_AUDIENCE,
         "iat": now,
@@ -59,8 +78,13 @@ def create_access_token(user_id: int) -> str:
     return jwt.encode(claims, _get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> int:
-    """Validate an access token and return its user_id or raise ValueError."""
+def decode_access_token_details(token: str) -> tuple[int, int]:
+    """Verify a JWT and return (user_id, token_version).
+
+    Legacy JWTs without a 'ver' claim are treated as version 0 until they
+    expire. The authentication dependency must compare the returned version
+    against User.auth_token_version to enforce revocation.
+    """
     try:
         claims = jwt.decode(
             token,
@@ -70,11 +94,54 @@ def decode_access_token(token: str) -> int:
             audience=JWT_AUDIENCE,
             options={"require": ["sub", "iss", "aud", "iat", "exp"]},
         )
-        user_id = int(claims["sub"])
 
-        if user_id <= 0:
+        raw_user_id = claims["sub"]
+        if not isinstance(raw_user_id, str) or not raw_user_id.isdecimal():
             raise ValueError("Invalid user ID.")
+        user_id = int(raw_user_id)
+        _validate_user_id(user_id)
 
-        return user_id
+        token_version = claims.get("ver", 0)
+        _validate_token_version(token_version)
+
+        return user_id, token_version
     except (InvalidTokenError, ValueError, TypeError, KeyError) as exc:
         raise ValueError("Invalid or expired access token.") from exc
+
+
+def decode_access_token(token: str) -> int:
+    """Preserve the existing API: validate a JWT and return its user ID."""
+    user_id, _ = decode_access_token_details(token)
+    return user_id
+
+
+def generate_password_reset_otp() -> str:
+    """Generate a cryptographically random six-digit recovery code."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def hash_password_reset_otp(user_id: int, otp: str) -> str:
+    """Produce a purpose- and user-bound HMAC digest for storing an OTP.
+
+    Never store or log the raw code. The OTP service must separately enforce
+    expiry, attempt limits, delivery through a verified channel and one-time use.
+    """
+    _validate_user_id(user_id)
+    if not isinstance(otp, str) or len(otp) != 6 or not otp.isascii() or not otp.isdigit():
+        raise ValueError("Password reset code must contain exactly six digits.")
+
+    message = f"guso:password-reset:{user_id}:{otp}".encode("utf-8")
+    return hmac.new(
+        _get_jwt_secret().encode("utf-8"), message, hashlib.sha256
+    ).hexdigest()
+
+
+def verify_password_reset_otp(user_id: int, otp: str, stored_hash: str) -> bool:
+    """Compare a supplied recovery code with its stored HMAC digest."""
+    if not isinstance(stored_hash, str) or len(stored_hash) != 64:
+        return False
+    try:
+        candidate_hash = hash_password_reset_otp(user_id, otp)
+    except ValueError:
+        return False
+    return hmac.compare_digest(candidate_hash, stored_hash)

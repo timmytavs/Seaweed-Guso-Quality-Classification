@@ -276,7 +276,10 @@ def login_user(db: Session, data: LoginRequest):
             )
 
     # Email is optional and does not require verification.
-    access_token = create_access_token(user.user_id)
+    access_token = create_access_token(
+        user_id=user.user_id,
+        token_version=user.auth_token_version,
+    )
 
     return {
         "message": "Login successful.",

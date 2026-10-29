@@ -55,6 +55,15 @@ class User(Base):
         nullable=False
     )
 
+    # Increment after a completed password reset to revoke existing JWTs.
+    # Token creation and validation must also enforce this version.
+    auth_token_version = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0"
+    )
+
     is_verified = Column(
         Boolean,
         default=False

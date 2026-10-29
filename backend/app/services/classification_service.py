@@ -1,5 +1,9 @@
 
-"""Run gUSo species, quality, and image-feature analysis."""
+"""Run gUSo quality-only analysis for user-submitted KAPPAPHYCUS photos.
+
+The updated MobileNetV3 Large model predicts Fresh, Regular, or Poor.
+It does NOT identify or verify the seaweed species.
+"""
 
 import logging
 
@@ -7,9 +11,8 @@ from fastapi.encoders import jsonable_encoder
 from PIL import Image
 from sqlalchemy.orm import Session
 
-from app.processing.preprocessing import preprocess_image
 from app.processing.feature_extraction import extract_image_features
-from app.ml.predictor import predict_image
+from app.ml.quality_model_loader import QUALITY_MODEL_VARIANT
 from app.ml.quality_predictor import predict_quality
 from app.database.repository import (
     create_classification_record,
@@ -17,6 +20,10 @@ from app.database.repository import (
 )
 
 logger = logging.getLogger(__name__)
+
+# KAPPAPHYCUS is the intended input, not a detected species.
+TARGET_SPECIES = "KAPPAPHYCUS"
+QUALITY_MODEL_NAME = "mobilenet_v3_large_quality"
 
 
 def classify_image(
@@ -27,42 +34,24 @@ def classify_image(
     mime_type: str,
     user_id: int | None = None,
 ):
-    """Classify accepted seaweed images and return available measurements."""
+    """Predict quality without the old seven-species gate."""
 
-    # Preserve the established MobileNetV3 Small species workflow.
-    image_tensor = preprocess_image(image)
-    prediction = predict_image(image_tensor)
+    if QUALITY_MODEL_VARIANT != "updated":
+        raise RuntimeError(
+            "The gUSo quality-only service requires the updated checkpoint. "
+            "Set GUSO_QUALITY_MODEL_VARIANT=updated and restart FastAPI."
+        )
 
-    # Images rejected by the species stage must not receive a quality grade
-    # or create a classification record.
-    if prediction.get("species") is None:
-        return {
-            "classification_id": None,
-            "species": None,
-            "confidence": prediction["confidence"],
-            "confidence_percentage": prediction["confidence_percentage"],
-            "model_name": prediction["model_name"],
-            "quality_grade": None,
-            "quality_confidence": None,
-            "quality_confidence_percentage": None,
-            "color": None,
-            "image_quality": None,
-            "visual_texture": None,
-            "image_features": None,
-            "message": prediction.get(
-                "message", "The uploaded image could not be classified."
-            ),
-        }
-
-    # MobileNetV3 Large performs the separate seaweed-quality prediction.
+    # Run the updated quality model directly.
     quality_prediction = predict_quality(image_bytes)
+
     quality_grade = quality_prediction["quality_grade"]
     quality_confidence = quality_prediction["quality_confidence"]
+    quality_confidence_percentage = round(
+        quality_confidence * 100, 2
+    )
 
-    # Image-level processing measures color, photographic quality, and edge
-    # detail. It is NOT seaweed segmentation or a biological health test.
-    # The auxiliary measurements must not prevent the trained models from
-    # producing a result if one of the heuristics fails on an unusual image.
+    # Optional photographic image features.
     image_features = None
     dominant_color = None
     photographic_quality = None
@@ -70,22 +59,35 @@ def classify_image(
 
     try:
         image_features = extract_image_features(image)
-        dominant_color = image_features["color"]["dominant_color"]
-        photographic_quality = image_features["image_quality"]["image_quality"]
-        visual_texture = image_features["texture"]["texture_description"]
-    except Exception:
-        logger.exception("Optional image feature extraction failed")
 
-    # Keep the existing database operations unchanged. The database records
-    # the actual quality class, while confidence_score remains species-only.
+        dominant_color = (
+            image_features["color"]["dominant_color"]
+        )
+
+        photographic_quality = (
+            image_features["image_quality"]["image_quality"]
+        )
+
+        visual_texture = (
+            image_features["texture"]["texture_description"]
+        )
+
+    except Exception:
+        logger.exception(
+            "Optional image feature extraction failed"
+        )
+
+    # Confidence now comes from the quality model,
+    # not from the previous species classifier.
     record = create_classification_record(
         db=db,
         user_id=user_id,
         quality_grade=quality_grade,
-        confidence=prediction["confidence"],
-        model_name=prediction["model_name"],
+        confidence=quality_confidence,
+        model_name=QUALITY_MODEL_NAME,
     )
 
+    # Preserve original-image storage.
     create_classification_image(
         db=db,
         classification_id=record.classification_id,
@@ -94,28 +96,36 @@ def classify_image(
         mime_type=mime_type,
     )
 
-    # Preserve every established API field; add the optional image-level
-    # measurements for the updated schema and Flutter result screen.
+    # Maintain compatibility with existing API and Flutter fields.
     result = {
         "classification_id": record.classification_id,
-        "species": prediction["species"],
-        "confidence": prediction["confidence"],
-        "confidence_percentage": prediction["confidence_percentage"],
-        "model_name": prediction["model_name"],
+        "species": TARGET_SPECIES,
+        "confidence": quality_confidence,
+        "confidence_percentage": quality_confidence_percentage,
+        "model_name": QUALITY_MODEL_NAME,
         "quality_grade": quality_grade,
         "quality_confidence": quality_confidence,
-        "quality_confidence_percentage": round(quality_confidence * 100, 2),
+        "quality_confidence_percentage": quality_confidence_percentage,
         "color": dominant_color,
         "image_quality": photographic_quality,
         "visual_texture": visual_texture,
         "image_features": image_features,
-        "message": prediction.get("message", "Classification successful."),
+        "species_verified": False,
+        "species_source": "assumed_kappaphycus_input",
+        "confidence_type": "quality",
+        "message": (
+            "Quality-only prediction for a user-submitted "
+            "KAPPAPHYCUS image. Species identity was not "
+            "verified by AI. The displayed confidence is "
+            "the quality-model confidence, not species "
+            "confidence."
+        ),
     }
 
-    # Store the same actual AI report that Flutter receives. The record
-    # remains a draft (is_saved=False) until the user presses Save.
-    # jsonable_encoder ensures the value fits PostgreSQL's JSONB column.
+    # Preserve the full classification report in PostgreSQL.
+    # Records remain drafts until the user presses Save.
     record.analysis_result = jsonable_encoder(result)
+
     db.add(record)
     db.commit()
 

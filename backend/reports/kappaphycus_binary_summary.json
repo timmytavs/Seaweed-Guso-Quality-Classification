@@ -1,0 +1,39 @@
+{
+  "target_species": "KAPPAPHYCUS",
+  "negative_label": "OTHER_SEAWEED",
+  "class_to_idx": {
+    "OTHER_SEAWEED": 0,
+    "KAPPAPHYCUS": 1
+  },
+  "random_seed": 42,
+  "dataset_root": "C:\\Users\\Administrator\\Documents\\Seaweed-Guso-Quality-Classification\\dataset\\species",
+  "train_counts": {
+    "OTHER_SEAWEED": 10000,
+    "KAPPAPHYCUS": 10000
+  },
+  "validation_counts": {
+    "OTHER_SEAWEED": 300,
+    "KAPPAPHYCUS": 50
+  },
+  "training_source_counts": {
+    "TURBINARIA AUSTRALIS": 1666,
+    "KAPPAPHYCUS": 10000,
+    "ULVA LACTUCA": 1666,
+    "CAULERPA SERTULARIOIDES": 1667,
+    "PADINA AUSTRALIS": 1667,
+    "CAULERPA LENTILIFERA": 1667,
+    "SARGASSUM MUTICUM": 1667
+  },
+  "validation_source_counts": {
+    "CAULERPA LENTILIFERA": 50,
+    "CAULERPA SERTULARIOIDES": 50,
+    "KAPPAPHYCUS": 50,
+    "PADINA AUSTRALIS": 50,
+    "SARGASSUM MUTICUM": 50,
+    "TURBINARIA AUSTRALIS": 50,
+    "ULVA LACTUCA": 50
+  },
+  "exact_cross_split_overlap": 0,
+  "identical_training_images": 14,
+  "note": "An exact-hash check cannot detect augmented copies of the same original photo across train/validation. Review capture/source groups. Negatives currently cover other SEAWEEDS, not unrelated objects."
+}
