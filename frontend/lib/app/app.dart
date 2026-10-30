@@ -62,7 +62,9 @@ class _SessionStartupGateState extends State<_SessionStartupGate> {
         'full session records = ${provider.records.length}',
       );
       if (provider.historyError != null) {
-        debugPrint('gUSo startup: history load error = ${provider.historyError}');
+        debugPrint(
+          'gUSo startup: history load error = ${provider.historyError}',
+        );
       }
 
       // The session is still valid even if History could not load.
@@ -87,6 +89,7 @@ class _SessionStartupGateState extends State<_SessionStartupGate> {
         return snapshot.data == true
             ? const HomeScreen()
             : const LandingScreen();
+        // return const LandingScreen();
       },
     );
   }
