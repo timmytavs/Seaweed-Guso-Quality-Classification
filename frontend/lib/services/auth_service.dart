@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,9 +10,22 @@ class AuthService {
 
   static const String _baseUrl = 'http://127.0.0.1:8000';
   static const String _tokenStorageKey = 'guso_access_token';
+  static const String _displayNameStorageKey = 'guso_user_display_name';
   static final SharedPreferencesAsync _storage = SharedPreferencesAsync();
 
   static String? _accessToken;
+
+  // The sidebar listens for the real account name from a successful login.
+  static final ValueNotifier<String?> displayNameListenable =
+      ValueNotifier<String?>(null);
+
+  static String? get displayName => displayNameListenable.value;
+
+  static String? _normalizeDisplayName(Object? name) {
+    if (name is! String) return null;
+    final cleaned = name.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return cleaned.isEmpty ? null : cleaned;
+  }
 
   static String? get accessToken => _accessToken;
 
@@ -29,16 +44,22 @@ class AuthService {
     final storedToken = await _storage.getString(_tokenStorageKey);
     if (storedToken == null || storedToken.isEmpty) {
       _accessToken = null;
+      displayNameListenable.value = null;
+      await _storage.remove(_displayNameStorageKey);
       return false;
     }
     _accessToken = storedToken;
+    final storedName = await _storage.getString(_displayNameStorageKey);
+    displayNameListenable.value = _normalizeDisplayName(storedName);
     return true;
   }
 
   // Clear both the active token and the persisted copy.
   static Future<void> clearSession() async {
     _accessToken = null;
+    displayNameListenable.value = null;
     await _storage.remove(_tokenStorageKey);
+    await _storage.remove(_displayNameStorageKey);
   }
 
   // A restored token must be checked by the backend, not just trusted
@@ -46,10 +67,9 @@ class AuthService {
   Future<bool> validateSession() async {
     if (!hasAccessToken) return false;
 
-    final response = await http.get(
-      Uri.parse('$_baseUrl/history/me'),
-      headers: authorizationHeaders,
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(Uri.parse('$_baseUrl/history/me'), headers: authorizationHeaders)
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) return true;
 
@@ -58,9 +78,7 @@ class AuthService {
       return false;
     }
 
-    throw Exception(
-      'Unable to validate login (HTTP ${response.statusCode}).',
-    );
+    throw Exception('Unable to validate login (HTTP ${response.statusCode}).');
   }
 
   Future<Map<String, dynamic>> register({
@@ -101,10 +119,7 @@ class AuthService {
     final response = await http.post(
       Uri.parse('$_baseUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'identifier': identifier.trim(),
-        'password': password,
-      }),
+      body: jsonEncode({'identifier': identifier.trim(), 'password': password}),
     );
 
     final dynamic decoded = jsonDecode(response.body);
@@ -116,8 +131,20 @@ class AuthService {
         throw Exception('Login succeeded, but no JWT was returned.');
       }
 
+      // User's full name is returned by the existing FastAPI login endpoint.
+      final user = result['user'];
+      final name = user is Map
+          ? _normalizeDisplayName(user['full_name'])
+          : null;
+
       _accessToken = token;
       await _storage.setString(_tokenStorageKey, token);
+      if (name == null) {
+        await _storage.remove(_displayNameStorageKey);
+      } else {
+        await _storage.setString(_displayNameStorageKey, name);
+      }
+      displayNameListenable.value = name;
       return result;
     }
 

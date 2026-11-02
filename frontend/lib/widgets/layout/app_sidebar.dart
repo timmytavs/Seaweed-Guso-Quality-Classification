@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../app/theme.dart';
 import '../../models/classification_record.dart';
 import '../../providers/classification_provider.dart';
+import '../../services/auth_service.dart';
 
 class AppSidebar extends StatelessWidget {
   final int selectedIndex;
@@ -48,9 +49,9 @@ class AppSidebar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.medium),
                 border: Border.all(color: AppColors.borderPrimary, width: 1.5),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 22,
                     backgroundColor: AppColors.primaryDark,
                     child: Icon(
@@ -59,15 +60,27 @@ class AppSidebar extends StatelessWidget {
                       size: 26,
                     ),
                   ),
-                  SizedBox(width: 14),
+                  const SizedBox(width: 14),
                   Expanded(
-                    child: Text(
-                      'USER',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: ValueListenableBuilder<String?>(
+                      valueListenable: AuthService.displayNameListenable,
+                      builder: (context, fullName, _) {
+                        final displayName =
+                            (fullName == null || fullName.trim().isEmpty)
+                            ? 'Account'
+                            : fullName;
+
+                        return Text(
+                          displayName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -163,24 +176,24 @@ class AppSidebar extends StatelessWidget {
           Expanded(
             child: savedCount == 0
                 ? classificationProvider.isLoadingHistory
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.primary,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : classificationProvider.historyError != null
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 22),
-                            child: Text(
-                              'Unable to load saved records. Open History to retry.',
-                              style: TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 13,
-                              ),
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : classificationProvider.historyError != null
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 22),
+                          child: Text(
+                            'Unable to load saved records. Open History to retry.',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 13,
                             ),
-                          )
-                        : const _EmptyHistory()
+                          ),
+                        )
+                      : const _EmptyHistory()
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     itemCount: savedCount,
@@ -196,9 +209,9 @@ class AppSidebar extends StatelessWidget {
                           record: record,
                           isSelected: isSelected,
                           onTap: () {
-                            context
-                                .read<ClassificationProvider>()
-                                .selectRecord(record);
+                            context.read<ClassificationProvider>().selectRecord(
+                              record,
+                            );
                             onMenuSelected(2);
                           },
                         );
@@ -408,10 +421,7 @@ class _HistorySummaryItem extends StatelessWidget {
   final SavedClassificationSummary summary;
   final VoidCallback onTap;
 
-  const _HistorySummaryItem({
-    required this.summary,
-    required this.onTap,
-  });
+  const _HistorySummaryItem({required this.summary, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

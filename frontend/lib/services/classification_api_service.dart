@@ -4,7 +4,12 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 class ClassificationApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000';
+  // static const String baseUrl = 'http://127.0.0.1:8000';
+
+  static const String baseUrl = String.fromEnvironment(
+    'GUSO_API_BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000',
+  );
 
   static Future<Map<String, dynamic>> classifyImage({
     required Uint8List imageBytes,
